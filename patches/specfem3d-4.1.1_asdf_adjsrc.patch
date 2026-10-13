@@ -1,0 +1,41 @@
+--- src/specfem3D/compute_add_sources_viscoelastic.F90	(stock 4.1.1)
++++ src/specfem3D/compute_add_sources_viscoelastic.F90	(ite3_gpu 2026-09-11)
+@@ -496,6 +496,7 @@
+   ! LTS
+   use specfem_par_lts, only: current_lts_time,current_lts_elem
+ 
++  use specfem_par, only: READ_ADJSRC_ASDF   ! ite3_gpu patch 2026-09-11
+   implicit none
+ 
+   ! local parameters
+@@ -627,7 +628,15 @@
+           do irec_local = 1, nadj_rec_local
+             ! reads in **net**.**sta**.**BH**.adj files
+             irec = number_adjsources_global(irec_local)
+-            adj_source_file = trim(network_name(irec))//'.'//trim(station_name(irec))
++            ! ite3_gpu patch 2026-09-11: mirror the CPU routine -- ASDF adjoint sources are
++            ! stored as NET_STA_COMP (check_adjoint_sources_ASDF looks them up that way);
++            ! stock 4.1.1 built NET.STA here and the GPU-mode read then failed with
++            ! 'Adjoint source NET.STA_COMP has wrong length'.
++            if (READ_ADJSRC_ASDF) then
++              adj_source_file = trim(network_name(irec))//'_'//trim(station_name(irec))
++            else
++              adj_source_file = trim(network_name(irec))//'.'//trim(station_name(irec))
++            endif
+             call compute_arrays_adjoint_source(adj_source_file,irec_local)
+           enddo
+         else
+--- src/specfem3D/compute_arrays_source.f90	(stock 4.1.1)
++++ src/specfem3D/compute_arrays_source.f90	(ite3_gpu 2026-09-11)
+@@ -249,7 +249,10 @@
+       call read_adjoint_sources_ASDF(filename, adj_source_asdf, it_start, it_end)
+ 
+       ! stores source array
+-      adj_src(icomp,:) = adj_source_asdf(:)
++      ! ite3_gpu patch 2026-09-11: stock 4.1.1 copied the samples into the LOCAL
++      ! array adj_src, which nothing reads -- ASDF adjoint sources were silently
++      ! zero (all kernels exactly 0, exit code 0). Store them where the ASCII branch does.
++      source_adjoint(icomp,irec_local,1:it_end-it_start+1) = adj_source_asdf(1:it_end-it_start+1)
+     enddo
+ 
+   else

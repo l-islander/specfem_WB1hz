@@ -1,0 +1,44 @@
+# Dry-run transcript of multi_gpu/event_parallel/run_sources_on_gpus.sh (2026-10-13).
+# --dry-run replaces the solver with a 1-3 s stub that writes 700 empty traces and the
+# .event_done marker, so this tests only the dispatch (4 worker loops, atomic claims, completion
+# markers). No GPU, SPECFEM or data was used. Paths are the generic ones from the top-level README.
+
+$ mkdir -p /tmp/wb_ev/XX.S{01..12}_Z
+$ multi_gpu/event_parallel/run_sources_on_gpus.sh --gpus 4 --events /tmp/wb_ev --out /tmp/wb_out --dry-run
+[pool] 12 sources, 4 GPUs, out=/tmp/wb_out  (DRY RUN)
+[gpu 0] XX.S01_Z start 00:52:42
+[gpu 2] XX.S02_Z start 00:52:42
+[gpu 1] XX.S03_Z start 00:52:42
+[gpu 3] XX.S04_Z start 00:52:42
+[gpu 2] XX.S02_Z done  00:52:43
+[gpu 3] XX.S04_Z done  00:52:43
+[gpu 3] XX.S05_Z start 00:52:43
+[gpu 2] XX.S06_Z start 00:52:43
+[gpu 0] XX.S01_Z done  00:52:44
+[gpu 1] XX.S03_Z done  00:52:44
+[gpu 0] XX.S07_Z start 00:52:44
+[gpu 1] XX.S08_Z start 00:52:44
+[gpu 2] XX.S06_Z done  00:52:45
+[gpu 2] XX.S09_Z start 00:52:45
+[gpu 3] XX.S05_Z done  00:52:46
+[gpu 0] XX.S07_Z done  00:52:46
+[gpu 1] XX.S08_Z done  00:52:46
+[gpu 1] XX.S10_Z start 00:52:46
+[gpu 0] XX.S11_Z start 00:52:46
+[gpu 3] XX.S12_Z start 00:52:46
+[gpu 1] XX.S10_Z done  00:52:47
+[gpu 1] finished, 3 sources
+[gpu 2] XX.S09_Z done  00:52:48
+[gpu 0] XX.S11_Z done  00:52:48
+[gpu 2] finished, 3 sources
+[gpu 0] finished, 3 sources
+[gpu 3] XX.S12_Z done  00:52:48
+[gpu 3] finished, 3 sources
+[pool] 12 / 12 sources complete in 6 s
+$ echo $?
+0
+$ ls /tmp/wb_out/XX.S01_Z | head -3; ls /tmp/wb_out/XX.S01_Z | wc -l
+XX.S1.BXZ.semd
+XX.S10.BXZ.semd
+XX.S100.BXZ.semd
+700

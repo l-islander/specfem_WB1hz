@@ -1,0 +1,3 @@
+#!/bin/bash
+# mock sacct -- no accounting on a workstation; print nothing.
+exit 0

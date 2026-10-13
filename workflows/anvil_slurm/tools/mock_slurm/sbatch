@@ -1,0 +1,54 @@
+#!/usr/bin/env python3
+"""mock sbatch -- run the wrapped command HERE, synchronously, so the SLURM drivers
+can be exercised on a machine without SLURM (the 5090 box, small NPROC).
+
+Understands the subset lib/slurm.sh uses: --wait --wrap CMD --array=1-N%K
+--job-name --nodes --ntasks --time --partition --output --account --export
+--parsable. Array tasks run SEQUENTIALLY (K is ignored: one box, one MPI job
+at a time). Sets SLURM_JOB_ID, SLURM_ARRAY_JOB_ID/TASK_ID, SLURM_JOB_NUM_NODES,
+SLURM_NTASKS, SLURM_CPUS_ON_NODE. Exit status: nonzero if any task failed.
+Never installs anything; put tools/mock_slurm on PATH only for a dry run.
+"""
+import os, re, subprocess, sys, time
+
+args = sys.argv[1:]
+opt = {}; i = 0
+while i < len(args):
+    a = args[i]
+    if a.startswith("--"):
+        if "=" in a:
+            k, v = a[2:].split("=", 1); opt[k] = v
+        elif a in ("--wait", "--parsable"):
+            opt[a[2:]] = True
+        else:
+            opt[a[2:]] = args[i + 1]; i += 1
+    i += 1
+cmd = opt.get("wrap")
+if not cmd:
+    sys.exit("mock sbatch: only --wrap is supported")
+jid = str(int(time.time() * 100) % 10_000_000)
+out = opt.get("output", "slurm-%j.out")
+env = dict(os.environ, SLURM_JOB_ID=jid, SLURM_JOB_NUM_NODES=opt.get("nodes", "1"),
+           SLURM_NTASKS=opt.get("ntasks", "1"), SLURM_CPUS_ON_NODE=os.environ.get("MOCK_CPUS", "16"),
+           SLURM_JOB_NAME=opt.get("job-name", "mock"))
+tasks = [None]
+m = re.match(r"^(\d+)-(\d+)(?:%(\d+))?$", opt.get("array", ""))
+if m:
+    tasks = list(range(int(m.group(1)), int(m.group(2)) + 1))
+rc_all = 0
+for t in tasks:
+    e = dict(env)
+    if t is not None:
+        e.update(SLURM_ARRAY_JOB_ID=jid, SLURM_ARRAY_TASK_ID=str(t))
+        logf = out.replace("%A", jid).replace("%a", str(t)).replace("%x", e["SLURM_JOB_NAME"]).replace("%j", jid)
+    else:
+        logf = out.replace("%j", jid).replace("%x", e["SLURM_JOB_NAME"])
+    os.makedirs(os.path.dirname(logf) or ".", exist_ok=True)
+    with open(logf, "ab") as fh:
+        fh.write(f"[mock sbatch] job {jid} task {t}: {cmd}\n".encode())
+        fh.flush()
+        rc = subprocess.call(["bash", "-c", cmd], env=e, stdout=fh, stderr=subprocess.STDOUT)
+    if rc != 0:
+        rc_all = rc
+print(jid)
+sys.exit(rc_all)
